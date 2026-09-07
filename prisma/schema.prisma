@@ -1,0 +1,209 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+enum MemberRole {
+  HOST
+  GUEST
+}
+
+
+
+enum SplitType {
+
+  EQUAL
+
+  EXACT
+
+  PERCENTAGE
+
+}
+
+
+
+enum SettlementStatus {
+
+  PENDING
+
+  COMPLETED
+
+}
+
+
+
+
+
+model Trip {
+
+  id           String   @id @default(cuid())
+
+  title        String
+
+  currency     String
+
+  hostTokenHash String  @unique
+
+  expiresAt    DateTime
+
+  createdAt    DateTime @default(now())
+
+
+
+  members      Member[]
+
+  expenses     Expense[]
+
+  settlements  Settlement[]
+
+
+
+  @@index([expiresAt])
+
+}
+
+
+
+
+
+model Member {
+
+  id        String     @id @default(cuid())
+
+  tripId    String
+
+  name      String
+
+  role      MemberRole @default(GUEST)
+
+  createdAt DateTime   @default(now())
+
+
+
+  trip             Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  paidExpenses     Expense[]      @relation("ExpensePayer")
+
+  expenseSplits    ExpenseSplit[]
+
+  settlementsFrom  Settlement[]   @relation("SettlementFrom")
+
+  settlementsTo    Settlement[]   @relation("SettlementTo")
+
+
+
+  @@index([tripId])
+
+}
+
+
+
+
+
+model Expense {
+
+  id              String   @id @default(cuid())
+
+  tripId          String
+
+  description     String
+
+  amount          Int
+
+  paidByMemberId  String
+
+  splitType       SplitType
+
+  createdAt       DateTime @default(now())
+
+
+
+  trip            Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  paidBy          Member         @relation("ExpensePayer", fields: [paidByMemberId], references: [id], onDelete: Restrict)
+
+  splits          ExpenseSplit[]
+
+
+
+  @@index([tripId])
+
+  @@index([paidByMemberId])
+
+}
+
+
+
+
+
+model ExpenseSplit {
+
+  id         String @id @default(cuid())
+
+  expenseId String
+
+  memberId  String
+
+  amount    Int
+
+
+
+  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  member    Member  @relation(fields: [memberId], references: [id], onDelete: Restrict)
+
+
+
+  @@unique([expenseId, memberId])
+
+  @@index([memberId])
+
+}
+
+
+
+
+
+model Settlement {
+
+  id            String           @id @default(cuid())
+
+  tripId        String
+
+  fromMemberId  String
+
+  toMemberId    String
+
+  amount        Int
+
+  status        SettlementStatus @default(PENDING)
+
+  createdAt     DateTime         @default(now())
+
+
+
+  trip          Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  fromMember    Member @relation("SettlementFrom", fields: [fromMemberId], references: [id], onDelete: Restrict)
+
+  toMember      Member @relation("SettlementTo", fields: [toMemberId], references: [id], onDelete: Restrict)
+
+
+
+  @@index([tripId])
+
+  @@index([fromMemberId])
+
+  @@index([toMemberId])
+
+}

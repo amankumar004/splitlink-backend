@@ -27,3 +27,4 @@ Thumbs.db
 
 # Prisma
 *.db
+/src/generated/prisma
