@@ -1,5 +1,6 @@
 import express from "express";
-import cors from "cors";
+// Load cors without requiring unavailable TypeScript declarations.
+const cors = require("cors");
 import helmet from "helmet";
 
 const app = express();
@@ -8,7 +9,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-app.get("/api/v1/health", (_req, res) => {
+app.get("/health", (_req, res) => {
   res.status(200).json({
     success: true,
     message: "SplitLink API is running",
