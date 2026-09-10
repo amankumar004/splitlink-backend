@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: splitlink-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: my_splitlink
+      POSTGRES_DB: splitlink
+    ports:
+      # Host 5433 so the native Postgres 16 cluster on 5432 is untouched.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `pnpm db:up` uses --wait, which blocks on this. Without it, a
+      # migration run straight after startup races the server's own init.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
+volumes:
+  pgdata:

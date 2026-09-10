@@ -1,7 +1,16 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// SplitLink — anonymous, link-based, self-destructing expense splitter.
+//
+// Two rules govern this file:
+//
+//   1. Trip is the only root. Deleting one Trip row must purge every
+//      descendant. That means every FK pointing at Trip is Cascade, and
+//      every FK pointing at Member is NoAction — never Restrict, which
+//      Postgres checks immediately and which therefore aborts the purge
+//      before the cascade has cleared the referencing rows.
+//
+//   2. Money is always an integer in the trip currency's MINOR units
+//      (paise, cents). Trip.currencyMinorUnits says how many there are.
+//      Never a float, never a Decimal.
 
 generator client {
   provider = "prisma-client"
@@ -12,198 +21,223 @@ datasource db {
   provider = "postgresql"
 }
 
-
 enum MemberRole {
   HOST
   GUEST
 }
 
-
-
 enum SplitType {
-
   EQUAL
-
   EXACT
-
   PERCENTAGE
-
+  SHARES
 }
-
-
 
 enum SettlementStatus {
-
   PENDING
-
-  COMPLETED
-
+  CONFIRMED
+  CANCELLED
 }
 
+enum TripStatus {
+  ACTIVE // readable + writable
+  LOCKED // host closed it: readable, no writes
+  EXPIRED // past expiresAt: API answers 410 Gone
+}
 
-
-
-
+/// A single split/trip. The root of the ownership tree and the unit of purge.
 model Trip {
+  id String @id @default(cuid())
 
-  id           String   @id @default(cuid())
+  /// Public URL slug. This is what goes in the shared link, so Trip.id
+  /// never leaves the server and a leaked code can be rotated.
+  shareCode String @unique
 
-  title        String
+  title    String
+  currency String @db.Char(3)
 
-  currency     String
+  /// Decimal places for `currency`: 2 for INR/USD, 0 for JPY, 3 for KWD.
+  /// Integer amounts are meaningless without it.
+  currencyMinorUnits Int @default(2) @db.SmallInt
 
-  hostTokenHash String  @unique
+  /// sha256(host token + TOKEN_PEPPER)
+  hostTokenHash String @unique
 
-  expiresAt    DateTime
+  status     TripStatus @default(ACTIVE)
+  maxMembers Int        @default(25) @db.SmallInt
 
-  createdAt    DateTime @default(now())
+  /// Hashed, so creation can be rate-limited per source without storing an IP.
+  createdByIpHash String?
 
+  /// Powers idle expiry and "extend because people are still using it".
+  lastActivityAt DateTime @default(now())
 
+  expiresAt DateTime
 
-  members      Member[]
+  /// Stamped by the purge job immediately before the row is deleted.
+  purgedAt DateTime?
 
-  expenses     Expense[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  settlements  Settlement[]
-
-
+  members     Member[]
+  expenses    Expense[]
+  settlements Settlement[]
+  activity    ActivityLog[]
 
   @@index([expiresAt])
-
+  @@index([status, expiresAt])
 }
 
-
-
-
-
+/// A person on a trip. No account, no email — identity is the token.
 model Member {
+  id     String @id @default(cuid())
+  tripId String
+  name   String
 
-  id        String     @id @default(cuid())
+  /// sha256(member token + TOKEN_PEPPER). Issued once at join and never
+  /// returned again. Without this the server cannot tell which member is
+  /// calling, and any link holder could post as anyone.
+  tokenHash String @unique
 
-  tripId    String
+  role MemberRole @default(GUEST)
 
-  name      String
+  /// A member with expenses can never be hard-deleted, so deactivate
+  /// instead: they drop out of new splits but stay in old ones.
+  isActive Boolean @default(true)
 
-  role      MemberRole @default(GUEST)
+  joinedAt DateTime @default(now())
 
-  createdAt DateTime   @default(now())
+  trip                  Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  paidExpenses          Expense[]      @relation("ExpensePayer")
+  enteredExpenses       Expense[]      @relation("ExpenseCreator")
+  expenseSplits         ExpenseSplit[]
+  settlementsFrom       Settlement[]   @relation("SettlementFrom")
+  settlementsTo         Settlement[]   @relation("SettlementTo")
+  settlementsRecorded   Settlement[]   @relation("SettlementRecorder")
+  settlementsConfirmed  Settlement[]   @relation("SettlementConfirmer")
+  activity              ActivityLog[]
 
-
-
-  trip             Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  paidExpenses     Expense[]      @relation("ExpensePayer")
-
-  expenseSplits    ExpenseSplit[]
-
-  settlementsFrom  Settlement[]   @relation("SettlementFrom")
-
-  settlementsTo    Settlement[]   @relation("SettlementTo")
-
-
-
+  @@unique([tripId, name])
   @@index([tripId])
-
+  @@index([tripId, role])
 }
 
-
-
-
-
+/// Money one member spent on behalf of some subset of the trip.
 model Expense {
+  id          String @id @default(cuid())
+  tripId      String
+  description String
 
-  id              String   @id @default(cuid())
+  /// INVARIANT: equals sum(splits.amountMinor). No CHECK constraint can
+  /// see across rows, so this is asserted in the write transaction.
+  amountMinor Int
 
-  tripId          String
+  /// Who fronted the cash.
+  paidByMemberId String
 
-  description     String
+  /// Who typed it in — usually one person enters for the whole group.
+  /// Drives edit permissions and the activity feed.
+  createdByMemberId String
 
-  amount          Int
+  splitType SplitType
 
-  paidByMemberId  String
+  category String?
+  notes    String?
 
-  splitType       SplitType
+  /// When the money was spent, which is not when it was entered.
+  spentAt DateTime @default(now())
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  trip      Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  paidBy    Member         @relation("ExpensePayer", fields: [paidByMemberId], references: [id], onDelete: NoAction)
+  createdBy Member         @relation("ExpenseCreator", fields: [createdByMemberId], references: [id], onDelete: NoAction)
+  splits    ExpenseSplit[]
 
-
-  trip            Trip           @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  paidBy          Member         @relation("ExpensePayer", fields: [paidByMemberId], references: [id], onDelete: Restrict)
-
-  splits          ExpenseSplit[]
-
-
-
-  @@index([tripId])
-
+  @@index([tripId, createdAt])
   @@index([paidByMemberId])
-
+  @@index([createdByMemberId])
 }
 
-
-
-
-
+/// One member's share of one expense.
 model ExpenseSplit {
-
-  id         String @id @default(cuid())
-
+  id        String @id @default(cuid())
   expenseId String
-
   memberId  String
 
-  amount    Int
+  /// The resolved share. Always populated, whatever the split type.
+  amountMinor Int
 
+  /// Original percentage as basis points (2500 = 25%), so reopening the
+  /// edit form can show what the user actually typed.
+  shareBps Int?
 
+  /// Original weight for SHARES splits ("a couple counts as two").
+  shareWeight Int? @db.SmallInt
 
-  expense   Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-
-  member    Member  @relation(fields: [memberId], references: [id], onDelete: Restrict)
-
-
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  member  Member  @relation(fields: [memberId], references: [id], onDelete: NoAction)
 
   @@unique([expenseId, memberId])
-
   @@index([memberId])
-
 }
 
-
-
-
-
+/// A real payment between two members. Suggested transfers are computed on
+/// read and never stored here — otherwise every new expense invalidates them.
 model Settlement {
+  id           String @id @default(cuid())
+  tripId       String
+  fromMemberId String // debtor
+  toMemberId   String // creditor
+  amountMinor  Int
 
-  id            String           @id @default(cuid())
+  status SettlementStatus @default(PENDING)
 
-  tripId        String
+  /// Free text: cash, UPI, bank transfer.
+  method String?
+  note   String?
 
-  fromMemberId  String
+  /// Claimed by the debtor, acknowledged by the creditor.
+  recordedByMemberId  String?
+  confirmedByMemberId String?
+  confirmedAt         DateTime?
 
-  toMemberId    String
+  createdAt DateTime @default(now())
 
-  amount        Int
+  trip        Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromMember  Member  @relation("SettlementFrom", fields: [fromMemberId], references: [id], onDelete: NoAction)
+  toMember    Member  @relation("SettlementTo", fields: [toMemberId], references: [id], onDelete: NoAction)
+  recordedBy  Member? @relation("SettlementRecorder", fields: [recordedByMemberId], references: [id], onDelete: NoAction)
+  confirmedBy Member? @relation("SettlementConfirmer", fields: [confirmedByMemberId], references: [id], onDelete: NoAction)
 
-  status        SettlementStatus @default(PENDING)
-
-  createdAt     DateTime         @default(now())
-
-
-
-  trip          Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-
-  fromMember    Member @relation("SettlementFrom", fields: [fromMemberId], references: [id], onDelete: Restrict)
-
-  toMember      Member @relation("SettlementTo", fields: [toMemberId], references: [id], onDelete: Restrict)
-
-
-
-  @@index([tripId])
-
+  @@index([tripId, status])
   @@index([fromMemberId])
-
   @@index([toMemberId])
+}
 
+/// Audit trail for a shared anonymous document. "Who changed this?" has no
+/// other answer here, and it is the only debugging surface for a user you
+/// cannot ask to log in and reproduce.
+model ActivityLog {
+  id     String @id @default(cuid())
+  tripId String
+
+  /// Null for system events such as "trip locked by expiry".
+  actorMemberId String?
+
+  /// EXPENSE_ADDED | MEMBER_JOINED | SETTLEMENT_CONFIRMED | ...
+  action String
+
+  /// Denormalised snapshot, so the entry survives the underlying row
+  /// being edited or deleted.
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  trip  Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  actor Member? @relation(fields: [actorMemberId], references: [id], onDelete: SetNull)
+
+  @@index([tripId, createdAt])
 }

@@ -28,3 +28,8 @@ Thumbs.db
 # Prisma
 *.db
 /src/generated/prisma
+
+docs/
+
+# Artifact build scratch (published copy is canonical)
+docs/.build/

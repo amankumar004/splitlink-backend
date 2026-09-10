@@ -1,20 +1,34 @@
 {
   "name": "splitlink",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Temporary, anonymous, link-based expense splitting API",
+  "type": "module",
+  "license": "ISC",
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": "^22.12 || >=24.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:reset": "prisma migrate reset",
+    "prisma:studio": "prisma studio",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose stop",
+    "db:destroy": "docker compose down -v",
+    "db:logs": "docker compose logs -f postgres",
+    "db:psql": "docker compose exec postgres sh -c 'psql -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\"'"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "^7.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
