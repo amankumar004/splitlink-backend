@@ -12,7 +12,7 @@ CREATE TYPE "TripStatus" AS ENUM ('ACTIVE', 'LOCKED', 'EXPIRED');
 
 -- CreateTable
 CREATE TABLE "Trip" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "shareCode" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "currency" CHAR(3) NOT NULL,
@@ -32,8 +32,8 @@ CREATE TABLE "Trip" (
 
 -- CreateTable
 CREATE TABLE "Member" (
-    "id" TEXT NOT NULL,
-    "tripId" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "tripId" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "tokenHash" TEXT NOT NULL,
     "role" "MemberRole" NOT NULL DEFAULT 'GUEST',
@@ -45,12 +45,12 @@ CREATE TABLE "Member" (
 
 -- CreateTable
 CREATE TABLE "Expense" (
-    "id" TEXT NOT NULL,
-    "tripId" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "tripId" UUID NOT NULL,
     "description" TEXT NOT NULL,
     "amountMinor" INTEGER NOT NULL,
-    "paidByMemberId" TEXT NOT NULL,
-    "createdByMemberId" TEXT NOT NULL,
+    "paidByMemberId" UUID NOT NULL,
+    "createdByMemberId" UUID NOT NULL,
     "splitType" "SplitType" NOT NULL,
     "category" TEXT,
     "notes" TEXT,
@@ -63,9 +63,9 @@ CREATE TABLE "Expense" (
 
 -- CreateTable
 CREATE TABLE "ExpenseSplit" (
-    "id" TEXT NOT NULL,
-    "expenseId" TEXT NOT NULL,
-    "memberId" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "expenseId" UUID NOT NULL,
+    "memberId" UUID NOT NULL,
     "amountMinor" INTEGER NOT NULL,
     "shareBps" INTEGER,
     "shareWeight" SMALLINT,
@@ -75,16 +75,16 @@ CREATE TABLE "ExpenseSplit" (
 
 -- CreateTable
 CREATE TABLE "Settlement" (
-    "id" TEXT NOT NULL,
-    "tripId" TEXT NOT NULL,
-    "fromMemberId" TEXT NOT NULL,
-    "toMemberId" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "tripId" UUID NOT NULL,
+    "fromMemberId" UUID NOT NULL,
+    "toMemberId" UUID NOT NULL,
     "amountMinor" INTEGER NOT NULL,
     "status" "SettlementStatus" NOT NULL DEFAULT 'PENDING',
     "method" TEXT,
     "note" TEXT,
-    "recordedByMemberId" TEXT,
-    "confirmedByMemberId" TEXT,
+    "recordedByMemberId" UUID,
+    "confirmedByMemberId" UUID,
     "confirmedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -93,9 +93,9 @@ CREATE TABLE "Settlement" (
 
 -- CreateTable
 CREATE TABLE "ActivityLog" (
-    "id" TEXT NOT NULL,
-    "tripId" TEXT NOT NULL,
-    "actorMemberId" TEXT,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "tripId" UUID NOT NULL,
+    "actorMemberId" UUID,
     "action" TEXT NOT NULL,
     "payload" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
