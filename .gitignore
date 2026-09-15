@@ -33,3 +33,5 @@ docs/
 
 # Artifact build scratch (published copy is canonical)
 docs/.build/
+
+generated/
