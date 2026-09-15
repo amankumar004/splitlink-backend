@@ -38,8 +38,11 @@ function isShareCodeCollision(error: unknown): boolean {
 }
 
 export class TripService {
-  async createTrip(payload: { body: CreateTripInput }) {
-    const { body } = payload;
+  async createTrip(payload: {
+    body: CreateTripInput;
+    ipHash?: string | null;
+  }) {
+    const { body, ipHash } = payload;
 
     const hostToken = generateToken();
     // Separate secret from hostToken: a leaked everyday token must not grant admin.
@@ -58,6 +61,7 @@ export class TripService {
             maxMembers: body.maxMembers,
             shareCode: generateShareCode(), // regenerated each attempt
             hostTokenHash: hashToken(hostToken),
+            createdByIpHash: ipHash ?? null, // abuse control only, never identity
             // Nested create = one statement. A trip with no host is unrecoverable.
             members: {
               create: {

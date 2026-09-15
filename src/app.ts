@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { env } from "./config/env.js";
 import prisma from "./lib/prisma.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import tripRoutes from "./modules/trip/trip.routes.js";
 
 const app = express();
 
@@ -34,12 +35,8 @@ app.get("/health/db", async (_req, res) => {
   res.status(200).json({ success: true, database: "connected", trips });
 });
 
-// ---------------------------------------------------------------------------
-// Routes mount here, above the handlers below.
-//
-//   app.use("/trips", tripRoutes);
-//   app.use("/trips", tripMemberRoutes);
-// ---------------------------------------------------------------------------
+app.use("/trips", tripRoutes);
+// app.use("/trips", tripMemberRoutes);  // join / me, once member.routes.ts exists
 
 // These two must stay LAST, and in this order.
 app.use(notFoundHandler);
