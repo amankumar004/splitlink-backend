@@ -47,7 +47,7 @@ enum TripStatus {
 
 /// A single split/trip. The root of the ownership tree and the unit of purge.
 model Trip {
-  id String @id @default(cuid())
+  id String @id @default(uuid(7)) @db.Uuid
 
   /// Public URL slug. This is what goes in the shared link, so Trip.id
   /// never leaves the server and a leaked code can be rotated.
@@ -91,8 +91,8 @@ model Trip {
 
 /// A person on a trip. No account, no email — identity is the token.
 model Member {
-  id     String @id @default(cuid())
-  tripId String
+  id     String @id @default(uuid(7)) @db.Uuid
+  tripId String @db.Uuid
   name   String
 
   /// sha256(member token + TOKEN_PEPPER). Issued once at join and never
@@ -125,8 +125,8 @@ model Member {
 
 /// Money one member spent on behalf of some subset of the trip.
 model Expense {
-  id          String @id @default(cuid())
-  tripId      String
+  id          String @id @default(uuid(7)) @db.Uuid
+  tripId      String @db.Uuid
   description String
 
   /// INVARIANT: equals sum(splits.amountMinor). No CHECK constraint can
@@ -134,11 +134,11 @@ model Expense {
   amountMinor Int
 
   /// Who fronted the cash.
-  paidByMemberId String
+  paidByMemberId String @db.Uuid
 
   /// Who typed it in — usually one person enters for the whole group.
   /// Drives edit permissions and the activity feed.
-  createdByMemberId String
+  createdByMemberId String @db.Uuid
 
   splitType SplitType
 
@@ -163,9 +163,9 @@ model Expense {
 
 /// One member's share of one expense.
 model ExpenseSplit {
-  id        String @id @default(cuid())
-  expenseId String
-  memberId  String
+  id        String @id @default(uuid(7)) @db.Uuid
+  expenseId String @db.Uuid
+  memberId  String @db.Uuid
 
   /// The resolved share. Always populated, whatever the split type.
   amountMinor Int
@@ -187,10 +187,10 @@ model ExpenseSplit {
 /// A real payment between two members. Suggested transfers are computed on
 /// read and never stored here — otherwise every new expense invalidates them.
 model Settlement {
-  id           String @id @default(cuid())
-  tripId       String
-  fromMemberId String // debtor
-  toMemberId   String // creditor
+  id           String @id @default(uuid(7)) @db.Uuid
+  tripId       String @db.Uuid
+  fromMemberId String @db.Uuid // debtor
+  toMemberId   String @db.Uuid // creditor
   amountMinor  Int
 
   status SettlementStatus @default(PENDING)
@@ -200,8 +200,8 @@ model Settlement {
   note   String?
 
   /// Claimed by the debtor, acknowledged by the creditor.
-  recordedByMemberId  String?
-  confirmedByMemberId String?
+  recordedByMemberId  String? @db.Uuid
+  confirmedByMemberId String? @db.Uuid
   confirmedAt         DateTime?
 
   createdAt DateTime @default(now())
@@ -221,11 +221,11 @@ model Settlement {
 /// other answer here, and it is the only debugging surface for a user you
 /// cannot ask to log in and reproduce.
 model ActivityLog {
-  id     String @id @default(cuid())
-  tripId String
+  id     String @id @default(uuid(7)) @db.Uuid
+  tripId String @db.Uuid
 
   /// Null for system events such as "trip locked by expiry".
-  actorMemberId String?
+  actorMemberId String? @db.Uuid
 
   /// EXPENSE_ADDED | MEMBER_JOINED | SETTLEMENT_CONFIRMED | ...
   action String

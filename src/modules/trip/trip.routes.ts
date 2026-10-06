@@ -1,8 +1,9 @@
 import { Router } from "express";
 
 import { hashIp } from "../../lib/clientIp.js";
+import { resolveTrip } from "../../middleware/resolveTrip.js";
 import { validate } from "../../middleware/validate.js";
-import { createTripSchema } from "./trip.schema.js";
+import { createTripSchema, tripCodeParamSchema } from "./trip.schema.js";
 import { TripService } from "./trip.service.js";
 
 const router = Router();
@@ -28,5 +29,26 @@ router.post("/", validate(createTripSchema), async (req, res) => {
     data: { trip, hostToken, memberToken },
   });
 });
+
+/**
+ * GET /trips/:code — the share link. Public: holding the code is the credential.
+ *
+ * validate -> rejects a malformed code before it reaches the database.
+ * resolveTrip -> loads req.trip, and answers 404 (never existed) vs 410 (over).
+ */
+router.get(
+  "/:code",
+  validate(tripCodeParamSchema, "params"),
+  resolveTrip,
+  async (req, res) => {
+    // Non-null: resolveTrip throws rather than calling next() without a trip.
+    const trip = await tripService.getTripDetail(req.trip!.id);
+
+    res.status(200).json({
+      success: true,
+      data: { trip },
+    });
+  },
+);
 
 export default router;

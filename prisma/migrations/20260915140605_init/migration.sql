@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
 CREATE TYPE "MemberRole" AS ENUM ('HOST', 'GUEST');
 
@@ -12,7 +15,7 @@ CREATE TYPE "TripStatus" AS ENUM ('ACTIVE', 'LOCKED', 'EXPIRED');
 
 -- CreateTable
 CREATE TABLE "Trip" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "shareCode" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "currency" CHAR(3) NOT NULL,
@@ -32,7 +35,7 @@ CREATE TABLE "Trip" (
 
 -- CreateTable
 CREATE TABLE "Member" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "tripId" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "tokenHash" TEXT NOT NULL,
@@ -45,7 +48,7 @@ CREATE TABLE "Member" (
 
 -- CreateTable
 CREATE TABLE "Expense" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "tripId" UUID NOT NULL,
     "description" TEXT NOT NULL,
     "amountMinor" INTEGER NOT NULL,
@@ -63,7 +66,7 @@ CREATE TABLE "Expense" (
 
 -- CreateTable
 CREATE TABLE "ExpenseSplit" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "expenseId" UUID NOT NULL,
     "memberId" UUID NOT NULL,
     "amountMinor" INTEGER NOT NULL,
@@ -75,7 +78,7 @@ CREATE TABLE "ExpenseSplit" (
 
 -- CreateTable
 CREATE TABLE "Settlement" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "tripId" UUID NOT NULL,
     "fromMemberId" UUID NOT NULL,
     "toMemberId" UUID NOT NULL,
@@ -93,7 +96,7 @@ CREATE TABLE "Settlement" (
 
 -- CreateTable
 CREATE TABLE "ActivityLog" (
-    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "id" UUID NOT NULL,
     "tripId" UUID NOT NULL,
     "actorMemberId" UUID,
     "action" TEXT NOT NULL,
@@ -192,6 +195,7 @@ ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_tripId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_actorMemberId_fkey" FOREIGN KEY ("actorMemberId") REFERENCES "Member"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
 
 -- ---------------------------------------------------------------------------
 -- Hand-added: constraints the Prisma schema language cannot express.

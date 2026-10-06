@@ -5,7 +5,7 @@ import {
   generateToken,
   hashToken,
 } from "../../lib/tokens.js";
-import { conflict } from "../../utils/httpError.js";
+import { conflict, notFound } from "../../utils/httpError.js";
 import type { CreateTripInput } from "./trip.schema.js";
 
 // ISO-4217 exponents. Add entries as SUPPORTED_CURRENCIES grows (JPY 0, KWD 3).
@@ -24,7 +24,13 @@ const TRIP_PUBLIC = {
   expiresAt: true,
   createdAt: true,
   members: {
-    select: { id: true, name: true, role: true, isActive: true, joinedAt: true },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+      isActive: true,
+      joinedAt: true,
+    },
     orderBy: { joinedAt: "asc" },
   },
 } satisfies Prisma.TripSelect;
@@ -38,10 +44,7 @@ function isShareCodeCollision(error: unknown): boolean {
 }
 
 export class TripService {
-  async createTrip(payload: {
-    body: CreateTripInput;
-    ipHash?: string | null;
-  }) {
+  async createTrip(payload: { body: CreateTripInput; ipHash?: string | null }) {
     const { body, ipHash } = payload;
 
     const hostToken = generateToken();
@@ -83,5 +86,23 @@ export class TripService {
     }
 
     throw conflict("CONFLICT", "Could not allocate a unique share code");
+  }
+
+  /**
+   * Takes the INTERNAL id, because resolveTrip has already turned the public
+   * shareCode into a Trip and decided 404 vs 410. Never look up by shareCode
+   * here, or that decision gets silently bypassed.
+   */
+  async getTripDetail(tripId: string) {
+    const trip = await prisma.trip.findUnique({
+      where: { id: tripId },
+      select: TRIP_PUBLIC,
+    });
+
+    if (!trip) {
+      throw notFound("TRIP_NOT_FOUND", "Trip not found");
+    }
+
+    return trip;
   }
 }
